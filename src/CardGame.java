@@ -170,7 +170,12 @@ public class CardGame {
                 selectedCard.setSelected(false, selectedCardRaiseAmount);
                 selectedCard = null;
             }
+            return;
         }
+        // change selection
+        selectedCard.setSelected(false, selectedCardRaiseAmount);
+        selectedCard = clickedCard;
+        selectedCard.setSelected(true, selectedCardRaiseAmount);
     }
 
     // return the card that is clicked!

@@ -35,10 +35,8 @@ public class Card extends ClickableRectangle {
             baseY = y;
             hasBaseY = true;
             y = baseY - raiseAmount;
-        } else if (!selected && this.selected) {
-            if (hasBaseY) {
-                y = baseY;
-            }
+        } else if (!selected && this.selected && hasBaseY) {
+            y = baseY;
         }
         this.selected = selected;
     }

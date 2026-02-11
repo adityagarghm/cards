@@ -79,7 +79,8 @@ public class Uno extends CardGame {
             System.out.println("Skipping opponent's turn");
             int drawNum = "Draw Two".equals(card.value) ? 2 : 4;
             for (int i = 0; i < drawNum; i++) {
-                drawCard(playerOneTurn ? playerTwoHand : playerOneHand);
+                // refactored into superclass, assuming you've already switched turns to the opponent
+                drawCard(playerOneTurn ? playerOneHand : playerTwoHand);
             }
             switchTurns();
         }
