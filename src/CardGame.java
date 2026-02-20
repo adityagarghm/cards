@@ -1,3 +1,4 @@
+
 import java.util.ArrayList;
 import java.util.Collections;
 
@@ -5,7 +6,7 @@ import processing.core.PApplet;
 
 public class CardGame {
     // Core game components
-    ArrayList<Card> deck = new ArrayList<>();
+    protected ArrayList<Card> deck = new ArrayList<>();
     Hand playerOneHand;
     Hand playerTwoHand;
     ArrayList<Card> discardPile = new ArrayList<>();

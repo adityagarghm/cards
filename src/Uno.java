@@ -1,3 +1,4 @@
+
 import processing.core.PApplet;
 
 public class Uno extends CardGame {
@@ -16,25 +17,24 @@ public class Uno extends CardGame {
         initializeGame();
     }
 
-    @Override
-    protected void createDeck() {
-        // Create deck (Uno has 108 cards)
-        // Create standard cards (2 of each color/value combination except 0)
-        for (String color : colors) {
-            deck.add(new Card("0", color)); // One 0 card per color
-            for (String value : values) {
-                deck.add(new Card(value, color));
-                deck.add(new Card(value, color)); // Two of each
+        @Override
+        protected void createDeck() {
+            // Standard UNO cards
+            for (String color : colors) {
+                deck.add(new UnoCard("0", color)); // one zero per color
 
+                for (String value : values) {
+                    deck.add(new UnoCard(value, color));
+                    deck.add(new UnoCard(value, color));
+                }
             }
-        }
-        // Add wild cards (4 of each type)
-        for (int i = 0; i < 4; i++) {
-            // suit, value
-            deck.add(new Card("Wild", "Wild"));
-            deck.add(new Card("Wild", "Draw Four"));
-        }
-    }
+
+            // Wild cards
+            for (int i = 0; i < 4; i++) {
+                deck.add(new UnoCard("Wild", "Wild"));
+                deck.add(new UnoCard("Wild", "Draw Four"));
+            }
+}
 
     @Override
     protected void initializeGame() {

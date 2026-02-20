@@ -1,3 +1,4 @@
+
 import processing.core.PImage;
 import processing.core.PApplet;
 
@@ -11,12 +12,12 @@ public class Card extends ClickableRectangle {
     private int baseY;
     private boolean hasBaseY = false;
 
-    Card(String value, String suit) {
+    public Card(String value, String suit) {
         this.value = value;
         this.suit = suit;
     }
 
-    Card(String value, String suit, PImage img) {
+    public Card(String value, String suit, PImage img) {
         this.value = value;
         this.suit = suit;
         this.img = img;
