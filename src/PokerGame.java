@@ -84,7 +84,7 @@ public class PokerGame extends CardGame {
 
     // action log
     private final ArrayList<String> actionLog = new ArrayList<>();
-    private static final int MAX_LOG = 8;
+    private static final int MAX_LOG = 5;
 
     public PokerGame(PApplet app) {
         super();
