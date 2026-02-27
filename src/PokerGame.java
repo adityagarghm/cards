@@ -413,6 +413,11 @@ public class PokerGame extends CardGame {
         lastAggressorIndex = -1;
         raisesThisRound = 0;
         minRaise = BIG_BLIND;
+        if (allActivePlayersAllIn()) {
+        stage = SHOWDOWN;
+        endRoundAndPayout();
+        return;
+    }
 
         if (stage == PREFLOP) {
             stage = FLOP;
@@ -644,4 +649,13 @@ public class PokerGame extends CardGame {
     public boolean isRoundActive() { return roundActive; }
     public int getPot() { return pot; }
     public ArrayList<PokerCard> getCommunityCards() { return communityCards; }
+    private boolean allActivePlayersAllIn() {
+        for (int i = 0; i < pPlayers.size(); i++) {
+            Player p = pPlayers.get(i);
+            if (p.isFolded()) continue;
+            if (p.getChips() > 0) return false;
+        }
+        return true;
+    }
 }
+
