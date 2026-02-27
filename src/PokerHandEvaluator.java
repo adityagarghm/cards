@@ -22,8 +22,6 @@ public class PokerHandEvaluator {
         ArrayList<PokerCard> all = new ArrayList<>();
         all.addAll(hand);
         all.addAll(community);
-
-        // For school-level poker, evaluate best 5 out of 7 (simplified)
         return evaluateHand(all);
     }
 

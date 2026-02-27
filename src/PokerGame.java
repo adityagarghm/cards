@@ -3,40 +3,20 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Random;
 
-/**
- * PokerGame — uses external Player class (no inner PokerPlayer)
- * - blinds
- * - preflop/flop/turn/river stages
- * - correct turn order
- * - robust betting rounds (hasActed logic)
- * - minRaise enforcement & raise cap
- *
- * Requires Player.java to have:
- * - addCard(Card)
- * - Hand getHand() with getSize() and getCard(int)
- * - int bet(int amount)
- * - void resetForRound()
- * - void fold()
- * - boolean isFolded()
- * - boolean isBot()
- * - int getBet(), int getChips(), String getName()
- * - int getAggression()
- * - void win(int amount)   <-- add this if missing
- */
 public class PokerGame extends CardGame {
 
     private final PApplet app;
+    private static final long BOT_ACTION_DELAY_MS = 600L; // 600 ms delay between bot actions
+    private long lastBotActionTime = 0;
 
-    // Poker players & state (uses external Player)
     private final ArrayList<Player> pPlayers = new ArrayList<>();
     private final ArrayList<PokerCard> communityCards = new ArrayList<>();
-
     private int dealerIndex = 0;
     private int currentPlayerIndex = 0;
 
     // money & tracking
     private int pot = 0;
-    private int currentBet = 0;            // highest bet this round
+    private int currentBet = 0;           
     private int minRaise = 0;
     private boolean roundActive = false;
 
@@ -56,8 +36,25 @@ public class PokerGame extends CardGame {
     private boolean[] hasActed = new boolean[0];
 
     // game stages
-    private enum Stage { PREFLOP, FLOP, TURN, RIVER, SHOWDOWN }
-    private Stage stage = Stage.PREFLOP;
+
+        private static final int PREFLOP = 0;
+        private static final int FLOP    = 1;
+        private static final int TURN    = 2;
+        private static final int RIVER   = 3;
+        private static final int SHOWDOWN= 4;
+        private int stage = PREFLOP;
+
+        // helper to show stage text (used in drawGame)
+        private String stageName() {
+            switch(stage) {
+                case PREFLOP:  return "PREFLOP";
+                case FLOP:     return "FLOP";
+                case TURN:     return "TURN";
+                case RIVER:    return "RIVER";
+                case SHOWDOWN: return "SHOWDOWN";
+                default:       return "UNKNOWN";
+            }
+        }
 
     // raise typing
     private boolean enteringRaise = false;
@@ -67,11 +64,19 @@ public class PokerGame extends CardGame {
     private long lastClickTime = 0;
     private static final long CLICK_DEBOUNCE_MS = 120L;
 
-    // random for bot behavior
     private final Random rnd = new Random();
 
-    // UI buttons
-    private static class Button { int x,y,w,h; String label; Button(int x,int y,int w,int h,String label){this.x=x;this.y=y;this.w=w;this.h=h;this.label=label;} boolean contains(int mx,int my){return mx>=x && mx<=x+w && my>=y && my<=y+h;} }
+    private static class Button { int x,y,w,h; String label; 
+    Button(int x,int y,int w,int h,String label)
+    {this.x=x;
+    this.y=y;
+    this.w=w;
+    this.h=h;
+    this.label=label;
+    } 
+    boolean contains(int mx,int my)
+    {return mx>=x && mx<=x+w && my>=y && my<=y+h;} 
+    }
     private final Button btnCall  = new Button(50,520,140,40,"CALL / CHECK");
     private final Button btnRaise = new Button(220,520,140,40,"RAISE");
     private final Button btnFold  = new Button(390,520,140,40,"FOLD");
@@ -82,16 +87,13 @@ public class PokerGame extends CardGame {
     private static final int MAX_LOG = 8;
 
     public PokerGame(PApplet app) {
-        super(); // keep teacher-provided initialization
+        super();
         this.app = app;
-
-        // create players (1 human + 3 bots) using your Player class
         pPlayers.clear();
         pPlayers.add(new Player("You", false));
         pPlayers.add(new Player("Bot 1", true));
         pPlayers.add(new Player("Bot 2", true));
         pPlayers.add(new Player("Bot 3", true));
-
         createDeck();
         startNewHand();
     }
@@ -101,15 +103,13 @@ public class PokerGame extends CardGame {
     protected void createDeck() {
         deck = new ArrayList<>();
         for (String s : PokerCard.SUITS) for (String v : PokerCard.VALUES) deck.add(new PokerCard(v, s));
-        Collections.shuffle(deck);
+        Collections.shuffle(deck);//shuffle deck
     }
 
     // ---------- new hand (with blinds) ----------
     private void startNewHand() {
         // reset Players for new hand
         for (Player p : pPlayers) p.resetForRound();
-
-        // arrays sized to player count
         int n = pPlayers.size();
         hasActed = new boolean[n];
         playerCurrentBets = new int[n];
@@ -123,7 +123,7 @@ public class PokerGame extends CardGame {
         raisesThisRound = 0;
         enteringRaise = false;
         typedRaise = 0;
-        stage = Stage.PREFLOP;
+        stage = PREFLOP;
         roundActive = true;
         actionLog.clear();
 
@@ -171,22 +171,31 @@ public class PokerGame extends CardGame {
     }
 
     // ---------- update (auto-bots) ----------
-    public void update() {
-        if (!roundActive) return;
-        Player cur = pPlayers.get(currentPlayerIndex);
-        if (cur == null) return;
+   public void update() {
+    if (!roundActive) return;
+    Player cur = pPlayers.get(currentPlayerIndex);
+    if (cur == null) return;
 
-        if (!cur.isBot() && cur.isFolded()) { // skip folded human if weird
-            advanceTurn();
-            return;
-        }
+    long now = System.currentTimeMillis();
 
-        if (cur.isBot() && !cur.isFolded() && cur.getChips() > 0) {
-            botAction(cur);
-            if (isBettingRoundComplete()) proceedStageOrShowdown();
-            else advanceTurn();
-        }
+    // If current player is human but all-in (no chips), auto-advance so bots play out
+    if (!cur.isBot() && cur.getChips() == 0 && !cur.isFolded()) {
+        if (now - lastBotActionTime < BOT_ACTION_DELAY_MS) return;
+        lastBotActionTime = now;
+        advanceTurn();
+        return;
     }
+
+    if (cur.isBot() && !cur.isFolded() && cur.getChips() > 0) {
+        if (now - lastBotActionTime < BOT_ACTION_DELAY_MS) 
+            return; // delay 
+        botAction(cur);
+        lastBotActionTime = now;
+        if (isBettingRoundComplete()) proceedStageOrShowdown();
+        else advanceTurn();
+    }
+}
+
 
     // ---------- bot logic (uses Player) ----------
     private void botAction(Player bot) {
@@ -200,8 +209,8 @@ public class PokerGame extends CardGame {
             new ArrayList<>(communityCards)
         );
 
-        int aggr = bot.getAggression();      // 0–100
-        int roll = rnd.nextInt(100);         // 0–99
+        int aggr = bot.getAggression();      
+        int roll = rnd.nextInt(100);     
 
         // WEAK HAND
         if (strength < PokerHandEvaluator.PAIR) {
@@ -267,18 +276,17 @@ public class PokerGame extends CardGame {
         hasActed[idx] = true;
     }
 
-    // helper to convert Player's hand -> ArrayList<PokerCard>
     private ArrayList<PokerCard> getPokerHandAsList(Player p) {
         ArrayList<PokerCard> cards = new ArrayList<>();
         Hand h = p.getHand();
         for (int i = 0; i < h.getSize(); i++) {
             Card c = h.getCard(i);
-            if (c instanceof PokerCard) cards.add((PokerCard)c);
+            if (c instanceof PokerCard) cards.add((PokerCard)c);//check - again looked online for what instanceof does
         }
         return cards;
     }
 
-    // ---------- human actions (UI triggers) ----------
+    // ---------- human actions --------
     public void humanCall() {
         if (!roundActive) return;
         Player cur = pPlayers.get(currentPlayerIndex);
@@ -302,12 +310,18 @@ public class PokerGame extends CardGame {
     }
 
     public void confirmRaise() {
-        if (!roundActive) { enteringRaise=false; typedRaise=0; return; }
+        if (!roundActive) { 
+            enteringRaise=false;
+             typedRaise=0; return; 
+            }
         Player cur = pPlayers.get(currentPlayerIndex);
-        if (cur == null || cur.isFolded() || cur.isBot()) { enteringRaise=false; typedRaise=0; return; }
+        if (cur == null || cur.isFolded() || cur.isBot()) {
+             enteringRaise=false; 
+             typedRaise=0; return;
+            }
 
         int need = Math.max(0, currentBet - playerCurrentBets[currentPlayerIndex]);
-        int raiseAmt = typedRaise; // typed value is the raise amount
+        int raiseAmt = typedRaise; 
         if (raiseAmt < minRaise) {
             if (raiseAmt == 0) {
                 int put = cur.bet(need);
@@ -326,7 +340,6 @@ public class PokerGame extends CardGame {
         int maxRaisePossible = Math.max(0, cur.getChips() - need);
         raiseAmt = Math.min(raiseAmt, maxRaisePossible);
         if (raiseAmt <= 0) {
-            // call instead
             int put = cur.bet(need);
             pot += put;
             playerCurrentBets[currentPlayerIndex] += put;
@@ -373,16 +386,19 @@ public class PokerGame extends CardGame {
     private boolean isBettingRoundComplete() {
         // count active players
         int active = 0;
-        for (Player p : pPlayers) if (!p.isFolded() && (p.getChips() > 0 || playerCurrentBets[pPlayers.indexOf(p)] > 0)) active++;
-        if (active <= 1) return true;
+            for (Player p : pPlayers) {
+                if (!p.isFolded()) active++;
+            }
 
         // require every active player to have acted and to have matched currentBet (or be all-in)
         for (int i = 0; i < pPlayers.size(); i++) {
             Player p = pPlayers.get(i);
             if (p.isFolded()) continue;
-            if (p.getChips() == 0) continue; // all-in counts as matched
+            if (p.getChips() == 0) continue; // all-in players are done
             if (!hasActed[i]) return false;
-            if (playerCurrentBets[i] != currentBet) return false;
+            // if player still has chips, they must match current bet
+            if (playerCurrentBets[i] < currentBet) return false;
+
         }
         return true;
     }
@@ -398,26 +414,30 @@ public class PokerGame extends CardGame {
         raisesThisRound = 0;
         minRaise = BIG_BLIND;
 
-        if (stage == Stage.PREFLOP) {
-            stage = Stage.FLOP;
+        if (stage == PREFLOP) {
+            stage = FLOP;
             dealCommunity(3);
             pushAction("Flop dealt.");
-        } else if (stage == Stage.FLOP) {
-            stage = Stage.TURN;
+
+        } else if (stage == FLOP) {
+            stage = TURN;
             dealCommunity(1);
             pushAction("Turn dealt.");
-        } else if (stage == Stage.TURN) {
-            stage = Stage.RIVER;
+
+        } else if (stage == TURN) {
+            stage = RIVER;
             dealCommunity(1);
             pushAction("River dealt.");
-        } else if (stage == Stage.RIVER) {
-            stage = Stage.SHOWDOWN;
+
+        } else if (stage == RIVER) {
+            stage = SHOWDOWN;
             endRoundAndPayout();
             return;
         }
 
         // set first to act after stage: player after dealer
         currentPlayerIndex = (dealerIndex + 1) % pPlayers.size();
+        advanceTurn();
     }
 
     private void advanceTurn() {
@@ -464,7 +484,7 @@ public class PokerGame extends CardGame {
         // stage & turn display (top-center)
         g.fill(255);
         g.textAlign(PApplet.CENTER, PApplet.TOP);
-        String stageTxt = "Stage: " + stage.name();
+        String stageTxt = "Stage: " + stageName();
         String turnTxt = "Turn: " + pPlayers.get(currentPlayerIndex).getName() + (roundActive ? "" : " (round over)");
         g.text(stageTxt + "    " + turnTxt, g.width/2f, 8);
 
@@ -489,49 +509,52 @@ public class PokerGame extends CardGame {
 
         // players area (cards, name, chips, bet)
         float baseY = 320;
-        for (int i = 0; i < pPlayers.size(); i++) {
-            Player pl = pPlayers.get(i);
-            float px = 80 + i * 200;
+            for (int i = 0; i < pPlayers.size(); i++) {
+                Player pl = pPlayers.get(i);
+                float px = 80 + i * 200;
 
-            // hole cards: iterate via Hand API
-            Hand h = pl.getHand();
-            float drawX = px;
+                Hand h = pl.getHand();
+                float drawX = px;
             for (int j = 0; j < h.getSize(); j++) {
-                Card cc = h.getCard(j);
-                PokerCard c = (cc instanceof PokerCard) ? (PokerCard) cc : null;
-                if (c != null) {
-                    c.setSize((int)cardW, (int)cardH);
-                    c.setPosition((int)(drawX + j * (cardW + 6)), (int)baseY);
-                    if (!pl.isBot() || pl.isFolded() == false) {
-                        // show human cards; hide bot cards unless they folded
-                        c.setTurned(!pl.isBot());
-                    } else {
-                        if (pl.isFolded()) {
-                            g.fill(50);
-                            g.rect((int)(drawX + j * (cardW + 6)), (int)baseY, (int)cardW, (int)cardH, 6);
-                        } else {
-                            c.setTurned(true);
-                        }
-                    }
-                    c.draw(g);
-                } else {
-                    // generic card rect fallback
-                    g.fill(80);
-                    g.rect((int)(drawX + j * (cardW + 6)), (int)baseY, (int)cardW, (int)cardH, 6);
-                }
-            }
+        Card cc = h.getCard(j);
+        PokerCard c = (cc instanceof PokerCard) ? (PokerCard) cc : null;
 
-            // name below cards
+        if (c != null) {
+            c.setSize((int)cardW, (int)cardH);
+            c.setPosition((int)(drawX + j * (cardW + 6)), (int)baseY);
+
+            if (pl.isBot()) {
+                // bots: hide cards unless showdown
+                if (stage == SHOWDOWN) {
+                    c.setTurned(false); 
+                } else {
+                    c.setTurned(true);  
+                }
+            } else {
+                c.setTurned(false);
+            }
+            c.draw(g);
+        } else {
+            g.fill(80);
+            g.rect(
+                (int)(drawX + j * (cardW + 6)),
+                (int)baseY,
+                (int)cardW,
+                (int)cardH,
+                6
+            );
+        }
+    }
+
+
             g.fill(pl.isFolded() ? 150 : 255);
             g.textAlign(PApplet.CENTER, PApplet.TOP);
             g.text(pl.getName(), px + cardW, baseY + cardH + 6);
 
-            // chips
             g.fill(255);
             g.textAlign(PApplet.CENTER, PApplet.TOP);
             g.text("$" + pl.getChips(), px + cardW, baseY + cardH + 24);
 
-            // bet (from playerCurrentBets)
             g.fill(200);
             g.textAlign(PApplet.CENTER, PApplet.TOP);
             g.text("Bet: " + playerCurrentBets[i], px + cardW, baseY + cardH + 42);

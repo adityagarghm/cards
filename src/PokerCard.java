@@ -21,7 +21,7 @@ public void drawFront(PApplet sketch) {
     sketch.fill(red ? sketch.color(200, 0, 0) : sketch.color(0));
     sketch.textAlign(PApplet.LEFT, PApplet.TOP);
     sketch.textSize(height * 0.18f);
-    sketch.text(value, x + width * 0.08f, y + height * 0.05f);
+    sketch.text(value, x + width * 0.08f, y + height * 0.05f);//far too much trial and error 
     sketch.pushMatrix();
     sketch.translate(x + width / 2f, y + height / 2f);
     sketch.fill(red ? sketch.color(200, 0, 0) : sketch.color(0));
@@ -34,7 +34,7 @@ public void drawFront(PApplet sketch) {
     else if (suit.equals("Clubs")) drawClub(sketch, s);
     else if (suit.equals("Spades")) drawSpade(sketch, s);
 
-    sketch.popMatrix();
+    sketch.popMatrix();//found this online, learned that pop and push essentially move the matrix origin, so much easier for me now 
 }
 
 private void drawHeart(PApplet p, float s) {
