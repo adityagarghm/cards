@@ -2,24 +2,13 @@ import processing.core.PApplet;
 import java.util.Collections;
 
 public class Uno extends CardGame {
-public Uno() {    
-    // Remove the 6 Poker cards from each hand manually
-    for (int i = 0; i < 6; i++) {
-        if (playerOneHand.getSize() > 0) {
-            playerOneHand.removeCard(playerOneHand.getCard(0));
-        }
-        if (playerTwoHand.getSize() > 0) {
-            playerTwoHand.removeCard(playerTwoHand.getCard(0));
-        }
-    }
 
-    createDeck();
-    dealCards(7); // Deal 7 Uno cards to each player
-        if (!deck.isEmpty()) {
-        lastPlayedCard = deck.remove(0);
-        discardPile.add(lastPlayedCard);
+    public Uno() {
+        super(); // calls initializeGame() and dealCards(6) from CardGame
+        // optionally create a UNO-style deck instead of CardGame's default deck
+        createDeck();
+        dealCards(6); // re-deal using UNO deck
     }
-}
 
     // Create a UNO-like deck using Card(value,color) but using suit as color
     @Override
@@ -82,38 +71,5 @@ public Uno() {
         p.textAlign(PApplet.LEFT, PApplet.TOP);
         p.text("UNO - click a card to select, click again to play", 10, 10);
         p.text("Deck size: " + getDeckSize(), 10, 30);
-    }
-    @Override
-    public void update() {
-        if (!playerOneTurn) {
-            handleComputerTurn(); 
-        }
-    }
-   @Override
-    public void draw(PApplet p) {
-        for (int i = 0; i < playerTwoHand.getSize(); i++) {
-            Card c = playerTwoHand.getCard(i);
-            if (!c.isTurned()) {
-                setUnoColor(p, c.suit);
-            } else {
-                p.fill(255);
-            }
-            c.draw(p);
-        }
-        for (int i = 0; i < playerOneHand.getSize(); i++) {
-            Card c = playerOneHand.getCard(i);
-            c.draw(p);
-        }
-        if (lastPlayedCard != null) {
-            lastPlayedCard.setPosition(400, 260);
-            lastPlayedCard.setSize(80, 120);
-            lastPlayedCard.setTurned(false);
-            lastPlayedCard.draw(p);
-        }
-        p.fill(255); 
-        p.rect(drawButton.x, drawButton.y, drawButton.width, drawButton.height);
-        p.fill(0); // Black text
-        p.textAlign(PApplet.CENTER, PApplet.CENTER);
-        p.text("DRAW", drawButton.x + drawButton.width/2, drawButton.y + drawButton.height/2);
     }
 }
