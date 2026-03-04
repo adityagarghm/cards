@@ -30,14 +30,14 @@ public class UnoCard extends Card {
         sketch.rect(x, y, width, height);
 
         // text 
-        if (suit == "Blue") {
+        if (suit.equals("Blue")) {
             sketch.fill(255);
         } else {
             sketch.fill(0);
         }
         sketch.textSize(14);
         // put on the upper left corner
-        if (value == "Skip") {
+        if (value.equals("Skip")) {
             // skip symbol can be represented as a circle with a line through it
             sketch.push();
             sketch.noFill();
@@ -46,7 +46,7 @@ public class UnoCard extends Card {
             sketch.ellipse(x + 15, y + 15, 20, 20);
             sketch.line(x + 5, y + 5, x + 25, y + 25);
             sketch.pop();
-        } else if (value == "Reverse") {
+        } else if (value.equals("Reverse")) {
             // reverse symbol can be represented as two arrows in a circle
             sketch.push();
             sketch.stroke(0);
@@ -63,9 +63,9 @@ public class UnoCard extends Card {
             sketch.line(x + 25, y + 15, x + 28, y + 18);
             // line created
             sketch.pop();
-        } else if (value == "Draw Two") {
+        } else if (value.equals( "Draw Two")) {
             sketch.text("+2", x + 10, y + 10);
-        } else if (value == "Wild") {
+        } else if (value.equals( "Wild")) {
             // wild symbol can be represented as four quadrants of circle
             sketch.fill(255, 0, 0);
             sketch.arc(x + 15, y + 15, 20, 20, 0, sketch.HALF_PI);
@@ -79,7 +79,7 @@ public class UnoCard extends Card {
             sketch.fill(255, 255, 0);
             sketch.arc(x + 15, y + 15, 20, 20,
                     3 * sketch.HALF_PI, sketch.TWO_PI);
-        } else if (value == "Draw Four") {
+        } else if (value.equals("Draw Four")) {
             sketch.text("+4", x + 10, y + 10);
         } else {
             sketch.text(value, x + 10, y + 10);

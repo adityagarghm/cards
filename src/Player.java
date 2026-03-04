@@ -2,7 +2,6 @@
 public class Player {
 
     private String name;
-    // 1. Change this from ArrayList<Card> to your custom Hand class
     private Hand hand = new Hand(); 
     private int chips = 1000;
     private int bet = 0;
@@ -22,12 +21,10 @@ public class Player {
     }
 }
 
-    // 2. Updated to use the Hand's internal method
     public void addCard(Card c) {
         hand.addCard(c);
     }
 
-    // 3. Changed return type to Hand to fix your "wrong return type" error
     public Hand getHand() {
         return hand;
     }
@@ -45,7 +42,6 @@ public class Player {
     public void resetForRound() {
         bet = 0;
         folded = false;
-        // 4. Reset the hand object for the next round
         hand = new Hand(); 
     }
 

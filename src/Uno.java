@@ -6,12 +6,13 @@ public class Uno extends CardGame {
     public Uno() {
         super(); // calls initializeGame() and dealCards(6) from CardGame
         // optionally create a UNO-style deck instead of CardGame's default deck
-        createUnoDeck();
+        createDeck();
         dealCards(6); // re-deal using UNO deck
     }
 
     // Create a UNO-like deck using Card(value,color) but using suit as color
-    private void createUnoDeck() {
+    @Override
+    public void createDeck() {
         deck.clear();
         String[] colors = {"Red", "Yellow", "Green", "Blue"};
         String[] values = {"0","1","2","3","4","5","6","7","8","9"};
@@ -42,6 +43,7 @@ public class Uno extends CardGame {
     }
 
     // Optional: draw UNO UI (draw hands and discard pile)
+    @Override
     public void draw(PApplet p) {
         // draw player two (top)
         Hand top = playerTwoHand;

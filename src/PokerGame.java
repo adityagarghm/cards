@@ -31,6 +31,8 @@ public class PokerGame extends CardGame {
     private int lastAggressorIndex = -1;
     private int raisesThisRound = 0;
     private final int MAX_RAISES_PER_ROUND = 6;
+    private long[] lastActionTime = new long[0];
+    private static final long ACTION_DISPLAY_MS = 2500L;
 
     // per-round per-player action tracker
     private boolean[] hasActed = new boolean[0];
@@ -43,6 +45,7 @@ public class PokerGame extends CardGame {
         private static final int RIVER   = 3;
         private static final int SHOWDOWN= 4;
         private int stage = PREFLOP;
+private String[] lastAction = new String[0];
 
         // helper to show stage text (used in drawGame)
         private String stageName() {
@@ -114,6 +117,10 @@ public class PokerGame extends CardGame {
         hasActed = new boolean[n];
         playerCurrentBets = new int[n];
         for (int i=0;i<n;i++){ hasActed[i] = false; playerCurrentBets[i] = 0; }
+        lastAction = new String[n];
+        lastActionTime = new long[n];
+        for (int i=0;i<n;i++) { lastAction[i] = ""; lastActionTime[i] = 0L; }
+
 
         communityCards.clear();
         pot = 0;
@@ -171,28 +178,35 @@ public class PokerGame extends CardGame {
     }
 
     // ---------- update (auto-bots) ----------
-   public void update() {
+    @Override
+ public void update() {
     if (!roundActive) return;
+    if (allActivePlayersAllIn()) {
+        stage = SHOWDOWN;
+        endRoundAndPayout();
+        return;
+    }
+
     Player cur = pPlayers.get(currentPlayerIndex);
     if (cur == null) return;
 
     long now = System.currentTimeMillis();
 
-    // If current player is human but all-in (no chips), auto-advance so bots play out
-    if (!cur.isBot() && cur.getChips() == 0 && !cur.isFolded()) {
-        if (now - lastBotActionTime < BOT_ACTION_DELAY_MS) return;
+    // If the current player is all-in and not folded, auto-advance so the hand completes
+    if (!cur.isFolded() && cur.getChips() == 0) {
+        if (now - lastBotActionTime < BOT_ACTION_DELAY_MS) return; 
         lastBotActionTime = now;
         advanceTurn();
         return;
     }
-
     if (cur.isBot() && !cur.isFolded() && cur.getChips() > 0) {
-        if (now - lastBotActionTime < BOT_ACTION_DELAY_MS) 
-            return; // delay 
+        if (now - lastBotActionTime < BOT_ACTION_DELAY_MS) return;
         botAction(cur);
         lastBotActionTime = now;
         if (isBettingRoundComplete()) proceedStageOrShowdown();
         else advanceTurn();
+        checkEndConditions();
+        return;
     }
 }
 
@@ -215,20 +229,32 @@ public class PokerGame extends CardGame {
         // WEAK HAND
         if (strength < PokerHandEvaluator.PAIR) {
             if (need == 0) {
+                dumpPlayerBetsDebug();
+                checkEndConditions();
                 pushAction(bot.getName() + " checked.");
+                lastAction[idx] = "checked";
+                lastActionTime[idx] = System.currentTimeMillis();
                 hasActed[idx] = true;
                 return;
             }
             if (need > bot.getChips() / 6 && roll > aggr) {
                 bot.fold();
+                dumpPlayerBetsDebug();
+                checkEndConditions();
                 pushAction(bot.getName() + " folded.");
+                lastAction[idx] = "checked";
+                lastActionTime[idx] = System.currentTimeMillis();
                 hasActed[idx] = true;
                 return;
             }
             int put = bot.bet(need);
             pot += put;
             playerCurrentBets[idx] += put;
+            dumpPlayerBetsDebug();
+            checkEndConditions();            
             pushAction(bot.getName() + " called " + put + ".");
+            lastAction[idx] = "checked";
+            lastActionTime[idx] = System.currentTimeMillis();
             hasActed[idx] = true;
             return;
         }
@@ -239,7 +265,11 @@ public class PokerGame extends CardGame {
                 int put = bot.bet(need);
                 pot += put;
                 playerCurrentBets[idx] += put;
+                dumpPlayerBetsDebug();
+                checkEndConditions();                
                 pushAction(bot.getName() + (need > 0 ? " called " + put + "." : " checked."));
+                lastAction[idx] = "checked";
+                lastActionTime[idx] = System.currentTimeMillis();
                 hasActed[idx] = true;
                 return;
             }
@@ -258,8 +288,11 @@ public class PokerGame extends CardGame {
                 lastAggressorIndex = idx;
                 raisesThisRound++;
                 minRaise = Math.max(minRaise, raiseAmt);
-
+                dumpPlayerBetsDebug();
+                checkEndConditions();
                 pushAction(bot.getName() + " raised " + raiseAmt + ".");
+                lastAction[idx] = "checked";
+                lastActionTime[idx] = System.currentTimeMillis();
                 // reset action tracking: only raiser considered acted
                 for (int i = 0; i < pPlayers.size(); i++) {
                     hasActed[i] = (i == idx) || pPlayers.get(i).isFolded() || pPlayers.get(i).getChips()==0;
@@ -272,7 +305,11 @@ public class PokerGame extends CardGame {
         int put = bot.bet(need);
         pot += put;
         playerCurrentBets[idx] += put;
+        dumpPlayerBetsDebug();
+        checkEndConditions();
         pushAction(bot.getName() + (need > 0 ? " called " + put + "." : " checked."));
+        lastAction[idx] = "checked";
+        lastActionTime[idx] = System.currentTimeMillis();
         hasActed[idx] = true;
     }
 
@@ -295,7 +332,11 @@ public class PokerGame extends CardGame {
         int put = cur.bet(need);
         pot += put;
         playerCurrentBets[currentPlayerIndex] += put;
+        dumpPlayerBetsDebug();
+        checkEndConditions();
         pushAction(cur.getName() + (need>0 ? " called " + put + "." : " checked."));
+        lastAction[currentPlayerIndex] = (need>0 ? "called " + put : "checked");
+        lastActionTime[currentPlayerIndex] = System.currentTimeMillis();
         hasActed[currentPlayerIndex] = true;
         if (isBettingRoundComplete()) proceedStageOrShowdown();
         else advanceTurn();
@@ -327,6 +368,8 @@ public class PokerGame extends CardGame {
                 int put = cur.bet(need);
                 pot += put;
                 playerCurrentBets[currentPlayerIndex] += put;
+                dumpPlayerBetsDebug();
+                checkEndConditions();
                 pushAction(cur.getName() + (need>0 ? " called " + put + "." : " checked."));
                 hasActed[currentPlayerIndex] = true;
             } else {
@@ -343,6 +386,8 @@ public class PokerGame extends CardGame {
             int put = cur.bet(need);
             pot += put;
             playerCurrentBets[currentPlayerIndex] += put;
+            dumpPlayerBetsDebug();
+            checkEndConditions();
             pushAction(cur.getName() + " called " + put + ".");
             enteringRaise = false; typedRaise = 0;
             hasActed[currentPlayerIndex] = true;
@@ -356,8 +401,12 @@ public class PokerGame extends CardGame {
         currentBet = Math.max(currentBet, playerCurrentBets[currentPlayerIndex]);
         lastAggressorIndex = currentPlayerIndex;
         raisesThisRound++;
-        minRaise = Math.max(minRaise, raiseAmt);
+        minRaise = Math.max(minRaise, raiseAmt);                
+        dumpPlayerBetsDebug();
+        checkEndConditions();
         pushAction(cur.getName() + " raised " + (need + raiseAmt) + " (raise=" + raiseAmt + ").");
+        lastAction[currentPlayerIndex] = "raised " + (need + raiseAmt);
+        lastActionTime[currentPlayerIndex] = System.currentTimeMillis();
 
         // reset hasActed for all active players except raiser
         for (int i=0;i<pPlayers.size();i++){
@@ -377,6 +426,8 @@ public class PokerGame extends CardGame {
         if (cur == null || cur.isBot()) return;
         cur.fold();
         pushAction(cur.getName() + " folded.");
+        lastAction[currentPlayerIndex] = "folded";
+        lastActionTime[currentPlayerIndex] = System.currentTimeMillis();
         hasActed[currentPlayerIndex] = true;
         if (isBettingRoundComplete()) proceedStageOrShowdown();
         else advanceTurn();
@@ -403,44 +454,39 @@ public class PokerGame extends CardGame {
         return true;
     }
 
-    private void proceedStageOrShowdown() {
-        // reset per-round state (keep player hands)
-        for (int i = 0; i < pPlayers.size(); i++) {
-            hasActed[i] = pPlayers.get(i).isFolded() || pPlayers.get(i).getChips() == 0;
-            playerCurrentBets[i] = 0;
-        }
-        currentBet = 0;
-        lastAggressorIndex = -1;
-        raisesThisRound = 0;
-        minRaise = BIG_BLIND;
-        if (allActivePlayersAllIn()) {
-        stage = SHOWDOWN;
-        endRoundAndPayout();
-        return;
-    }
+        private void proceedStageOrShowdown() {
 
-        if (stage == PREFLOP) {
-            stage = FLOP;
-            dealCommunity(3);
-            pushAction("Flop dealt.");
-
-        } else if (stage == FLOP) {
-            stage = TURN;
-            dealCommunity(1);
-            pushAction("Turn dealt.");
-
-        } else if (stage == TURN) {
-            stage = RIVER;
-            dealCommunity(1);
-            pushAction("River dealt.");
-
-        } else if (stage == RIVER) {
+        if (stage == RIVER) {
             stage = SHOWDOWN;
             endRoundAndPayout();
             return;
         }
+        if (stage == PREFLOP) {
+            stage = FLOP;
+            dealCommunity(3);
+            pushAction("Flop dealt.");
+        }
+        else if (stage == FLOP) {
+            stage = TURN;
+            dealCommunity(1);
+            pushAction("Turn dealt.");
+        }
+        else if (stage == TURN) {
+            stage = RIVER;
+            dealCommunity(1);
+            pushAction("River dealt.");
+        }
 
-        // set first to act after stage: player after dealer
+        for (int i = 0; i < pPlayers.size(); i++) {
+            playerCurrentBets[i] = 0;
+            hasActed[i] = pPlayers.get(i).isFolded() || pPlayers.get(i).getChips() == 0;
+        }
+
+        currentBet = 0;
+        raisesThisRound = 0;
+        minRaise = BIG_BLIND;
+        lastAggressorIndex = -1;
+
         currentPlayerIndex = (dealerIndex + 1) % pPlayers.size();
         advanceTurn();
     }
@@ -455,16 +501,26 @@ public class PokerGame extends CardGame {
     }
 
     private void checkEndConditions() {
-        int alive = 0; Player last = null;
+        int alive = 0;
+        Player last = null;
+
         for (Player p : pPlayers) {
-            if (!p.isFolded() && (p.getChips() > 0 || playerCurrentBets[pPlayers.indexOf(p)] > 0)) { alive++; last = p; }
+            if (!p.isFolded()) {
+                alive++;
+                last = p;
+            }
         }
-        if (alive <= 1) {
-            if (last != null) { last.win(pot); pushAction(last.getName() + " wins by fold!"); }
+
+        if (alive == 1) {
+            if (last != null) {
+                last.win(pot);
+                pushAction(last.getName() + " wins by fold!");
+            }
             pot = 0;
             roundActive = false;
         }
     }
+
 
     // ---------- showdown / payout ----------
     private void endRoundAndPayout() {
@@ -485,7 +541,8 @@ public class PokerGame extends CardGame {
     }
 
     // ---------- drawing ----------
-    public void drawGame(PApplet g) {
+    @Override
+    public void draw(PApplet g) {
         // stage & turn display (top-center)
         g.fill(255);
         g.textAlign(PApplet.CENTER, PApplet.TOP);
@@ -563,7 +620,12 @@ public class PokerGame extends CardGame {
             g.fill(200);
             g.textAlign(PApplet.CENTER, PApplet.TOP);
             g.text("Bet: " + playerCurrentBets[i], px + cardW, baseY + cardH + 42);
-
+            long t = lastActionTime[i];
+            if (t > 0 && System.currentTimeMillis() - t <= ACTION_DISPLAY_MS) {
+                g.fill(180);
+                g.textAlign(PApplet.CENTER, PApplet.TOP);
+                g.text(lastAction[i], px + cardW, baseY + cardH + 60);
+            }
             if (pl.getChips() == 0 && !pl.isFolded()) {
                 g.fill(255,200,0);
                 g.textAlign(PApplet.CENTER, PApplet.TOP);
@@ -606,7 +668,8 @@ public class PokerGame extends CardGame {
     }
 
     // ---------- input ----------
-    public void handleMouse(int mx, int my) {
+    @Override
+    public void handleCardClick(int mx, int my) {
         long now = System.currentTimeMillis();
         if (now - lastClickTime < CLICK_DEBOUNCE_MS) return;
         lastClickTime = now;
@@ -626,9 +689,11 @@ public class PokerGame extends CardGame {
 
         if (btnCall.contains(mx,my)) { humanCall(); return; }
         if (btnRaise.contains(mx,my)) { beginRaiseTyping(); return; }
-        if (btnFold.contains(mx,my)) { cur.fold(); pushAction(cur.getName() + " folded."); hasActed[currentPlayerIndex] = true; if (isBettingRoundComplete()) proceedStageOrShowdown(); else advanceTurn(); return; }
-    }
-
+        if (btnFold.contains(mx,my)) { 
+            humanFold(); 
+            return; 
+}    }
+    @Override
     public void handleKey(char keyChar, int keyCode) {
         if (!enteringRaise) return;
         if (Character.isDigit(keyChar)) {
@@ -657,5 +722,12 @@ public class PokerGame extends CardGame {
         }
         return true;
     }
+    private void dumpPlayerBetsDebug() {//debugger
+    StringBuilder sb = new StringBuilder("BETS:");
+    for (int i = 0; i < pPlayers.size(); i++) {
+        sb.append(" [").append(pPlayers.get(i).getName()).append(":").append(playerCurrentBets[i]).append("]");
+    }
+    System.out.println(sb.toString());
+}
 }
 

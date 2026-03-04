@@ -6,6 +6,6 @@ ADITYA GARG
   - [x] 2/18 Finish understanding the code 
   - [x] 2/20 create the classes and fully understand what to do 
   - [x] 2/25 link the code with pre existing code 
-  - [ ] 2/27 Finalize + clean up the uno, finish the last bugs  
-  - [ ] 3/2 - Maybe make a solitaire game 
+  - [x] 2/27 Finalize + clean up the uno, finish the last bugs  
+  - [ ] 3/2 - Make uno work with the adjusted Cardgame
 

@@ -5,7 +5,7 @@ import processing.core.PApplet;
 
 public abstract class CardGame {
     // Core game components (teacher-provided fields)
-    protected static ArrayList<Card> deck = new ArrayList<>();
+    protected ArrayList<Card> deck = new ArrayList<>();
     Hand playerOneHand;
     Hand playerTwoHand;
     ArrayList<Card> discardPile = new ArrayList<>();
@@ -60,7 +60,6 @@ public abstract class CardGame {
      * Subclasses (PokerGame, Uno) should override this method to create appropriate cards.
      */
     protected void createDeck() {
-        // Basic fallback: create standard 52-card deck of Card objects
         String[] suits = { "Hearts", "Diamonds", "Clubs", "Spades" };
         String[] values = { "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A" };
         deck.clear();
@@ -102,7 +101,7 @@ public abstract class CardGame {
 
     public void nextTurn() {
         if (players == null || players.isEmpty()) {
-            // fallback to 2-player toggle using teacher boolean
+
             playerOneTurn = !playerOneTurn;
             return;
         }
@@ -114,7 +113,6 @@ public abstract class CardGame {
         if (deck != null && !deck.isEmpty()) {
             hand.addCard(deck.remove(0));
         } else if (discardPile != null && discardPile.size() > 1) {
-            // Reshuffle discard pile into deck if deck is empty
             lastPlayedCard = discardPile.remove(discardPile.size() - 1);
             deck.addAll(discardPile);
             discardPile.clear();
@@ -130,13 +128,11 @@ public abstract class CardGame {
     public void handleDrawButtonClick(int mouseX, int mouseY) {
         if (drawButton.isClicked(mouseX, mouseY) && playerOneTurn) {
             drawCard(playerOneHand);
-            // Switch turns after drawing
             switchTurns();
         }
     }
 
     public boolean playCard(Card card, Hand hand) {
-        // Check if card is valid to play
         if (!isValidPlay(card)) {
             System.out.println("Invalid play: " + card.value + " of " + card.suit);
             return false;
@@ -158,7 +154,6 @@ public abstract class CardGame {
         playerTwoHand.positionCards(50, 50, 80, 120, 20);
     }
 
-    // Teacher method: keep same behavior (2-player string)
     public String getCurrentPlayer() {
         return playerOneTurn ? "Player One" : "Player Two";
     }
@@ -192,7 +187,6 @@ public abstract class CardGame {
         if (clickedCard == null) {
             return;
         }
-        // this is for the first time
         if (selectedCard == null) {
             selectedCard = clickedCard;
             selectedCard.setSelected(true, selectedCardRaiseAmount);
@@ -207,13 +201,11 @@ public abstract class CardGame {
             }
             return;
         }
-        // change selection
         selectedCard.setSelected(false, selectedCardRaiseAmount);
         selectedCard = clickedCard;
         selectedCard.setSelected(true, selectedCardRaiseAmount);
     }
 
-    // return the card that is clicked (teacher helper)
     public Card getClickedCard(int mouseX, int mouseY) {
         for (int i = playerOneHand.getSize() - 1; i >= 0; i--) {
             Card card = playerOneHand.getCard(i);
@@ -224,8 +216,12 @@ public abstract class CardGame {
         return null;
     }
 
-    // method intended to be optionally overridden by subclasses
     public void drawChoices(PApplet app) {
         // default: nothing
     }
+    public void handleKey(char key, int keyNumber){
+
+    }
+    public void update(){}
+    public void draw(PApplet g) {}
 }
