@@ -13,7 +13,7 @@ public class App extends PApplet {
     }
 
     public void setup() {
-       gamePlaying = new Uno();
+       gamePlaying = new PokerGame(null);
         textFont(createFont("Arial", 16));
     }
 

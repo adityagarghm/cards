@@ -15,7 +15,7 @@ public class Player {
     this.bot = bot;
 
     if (bot) {
-        aggression = (int)(Math.random() * 101); // 0–100
+        aggression = 25 + (int)(Math.random() * 50); // 25-75
     } else {
         aggression = 0;
     }
@@ -71,5 +71,7 @@ public class Player {
      public void win(int amount) {
         this.chips += amount;
     }
-
+    public void resetChips(int amount) {
+    chips = amount;
+}
 }

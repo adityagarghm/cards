@@ -4,34 +4,29 @@ import java.util.Collections;
 import processing.core.PApplet;
 
 public abstract class CardGame {
-    // Core game components (teacher-provided fields)
     protected ArrayList<Card> deck = new ArrayList<>();
     Hand playerOneHand;
     Hand playerTwoHand;
     ArrayList<Card> discardPile = new ArrayList<>();
     Card selectedCard;
     int selectedCardRaiseAmount = 15;
-
-    // Game state (teacher-provided)
     boolean playerOneTurn = true;
     Card lastPlayedCard;
     boolean gameActive;
 
-    // UI (teacher-provided)
     ClickableRectangle drawButton;
     int drawButtonX = 250;
     int drawButtonY = 400;
     int drawButtonWidth = 100;
     int drawButtonHeight = 35;
+    ClickableRectangle playAgain;
 
-    // new: generic player list & turn index for games that want many players (Poker will not require modifying teacher methods)
+
     protected ArrayList<Player> players = new ArrayList<>();
     protected int turn = 0;
 
-    // Single constructor (keeps teacher behavior: initializeGame + dealCards)
     public CardGame() {
         initializeGame();
-        dealCards(6);
     }
 
     protected void initializeGame() {
@@ -41,24 +36,18 @@ public abstract class CardGame {
         drawButton.y = drawButtonY;
         drawButton.width = drawButtonWidth;
         drawButton.height = drawButtonHeight;
+        //drawButton.text = "Draw";
 
         // Initialize decks and hands
         deck = new ArrayList<>();
-        discardPile = new ArrayList<>();
         playerOneHand = new Hand();
         playerTwoHand = new Hand();
         gameActive = true;
-
-        // players list exists but teacher didn't populate it here; subclasses or App can
         players = new ArrayList<>();
 
         createDeck();
+        dealCards(6);
     }
-
-    /**
-     * Default deck creator: base Card deck.
-     * Subclasses (PokerGame, Uno) should override this method to create appropriate cards.
-     */
     protected void createDeck() {
         String[] suits = { "Hearts", "Diamonds", "Clubs", "Spades" };
         String[] values = { "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A" };
@@ -68,14 +57,14 @@ public abstract class CardGame {
                 deck.add(new Card(value, suit));
             }
         }
+        playerOneHand.positionCards(50, 450, 80, 120, 20);
+        playerTwoHand.positionCards(50, 50, 80, 120, 20);
     }
 
     protected void dealCards(int numCards) {
         Collections.shuffle(deck);
         for (int i = 0; i < numCards; i++) {
-            // give one to player one
             if (!deck.isEmpty()) playerOneHand.addCard(deck.remove(0));
-            // give one (face-down) to player two
             if (!deck.isEmpty()) {
                 Card card = deck.remove(0);
                 card.setTurned(true);
@@ -83,17 +72,14 @@ public abstract class CardGame {
             }
         }
 
-        // position cards (teacher layout)
         playerOneHand.positionCards(50, 450, 80, 120, 20);
         playerTwoHand.positionCards(50, 50, 80, 120, 20);
     }
 
     protected boolean isValidPlay(Card card) {
-        // Default: allow everything (subclasses should override if different rules needed)
         return true;
     }
 
-    // Generic player helpers (for games that want player objects)
     public Player getCurrentPlayerObj() {
         if (players == null || players.isEmpty()) return null;
         return players.get(turn);
@@ -131,21 +117,41 @@ public abstract class CardGame {
             switchTurns();
         }
     }
+    public void handlePlayAgainClick(int mouseX, int mouseY) {
+        if (playAgain.isClicked(mouseX, mouseY) && !gameActive) {
+            initializeGame();
+        }
+    }
 
     public boolean playCard(Card card, Hand hand) {
+        // Check if card is valid to play
         if (!isValidPlay(card)) {
             System.out.println("Invalid play: " + card.value + " of " + card.suit);
             return false;
         }
         // Remove card from hand
         hand.removeCard(card);
-        card.setTurned(false);
+        card.setSelected(false, selectedCardRaiseAmount);
         // Add to discard pile
         discardPile.add(card);
+        card.setTurned(false);
         lastPlayedCard = card;
+        checkWinCondition();
+        if (!gameActive) {
+            return true;
+        }
         // Switch turns
         switchTurns();
         return true;
+    }
+        public void checkWinCondition() {
+        if (playerOneHand.getSize() == 0) {
+            System.out.println("Player One wins!");
+            gameActive = false;
+        } else if (playerTwoHand.getSize() == 0) {
+            System.out.println("Player Two wins!");
+            gameActive = false;
+        }
     }
 
     public void switchTurns() {
@@ -217,7 +223,6 @@ public abstract class CardGame {
     }
 
     public void drawChoices(PApplet app) {
-        // default: nothing
     }
     public void handleKey(char key, int keyNumber){
 

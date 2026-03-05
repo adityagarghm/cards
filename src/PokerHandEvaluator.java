@@ -16,8 +16,7 @@ public class PokerHandEvaluator {
     public static final int STRAIGHT_FLUSH = 9;
 
     // MAIN METHOD PokerGame should call
-    public static int evaluate(ArrayList<PokerCard> hand,
-                               ArrayList<PokerCard> community) {
+    public static int evaluate(ArrayList<PokerCard> hand,ArrayList<PokerCard> community) {
 
         ArrayList<PokerCard> all = new ArrayList<>();
         all.addAll(hand);

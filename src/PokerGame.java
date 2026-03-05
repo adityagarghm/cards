@@ -22,6 +22,8 @@ public class PokerGame extends CardGame {
 
     // per-player current bet for this round (separate from Player.bet)
     private int[] playerCurrentBets = new int[0];
+    private boolean hideTableCards = false;
+
 
     // blinds
     private final int SMALL_BLIND = 10;
@@ -47,7 +49,6 @@ public class PokerGame extends CardGame {
         private int stage = PREFLOP;
 private String[] lastAction = new String[0];
 
-        // helper to show stage text (used in drawGame)
         private String stageName() {
             switch(stage) {
                 case PREFLOP:  return "PREFLOP";
@@ -84,10 +85,13 @@ private String[] lastAction = new String[0];
     private final Button btnRaise = new Button(220,520,140,40,"RAISE");
     private final Button btnFold  = new Button(390,520,140,40,"FOLD");
     private final Button btnNewHand= new Button(560,520,140,40,"NEW HAND");
+    private final Button btnEndGame = new Button(720, 520, 140, 40, "END GAME");
+
 
     // action log
     private final ArrayList<String> actionLog = new ArrayList<>();
     private static final int MAX_LOG = 5;
+    private Player gameWinner = null;
 
     public PokerGame(PApplet app) {
         super();
@@ -111,7 +115,8 @@ private String[] lastAction = new String[0];
 
     // ---------- new hand (with blinds) ----------
     private void startNewHand() {
-        // reset Players for new hand
+        gameWinner = null;
+        hideTableCards = false; // show cards again      
         for (Player p : pPlayers) p.resetForRound();
         int n = pPlayers.size();
         hasActed = new boolean[n];
@@ -192,7 +197,6 @@ private String[] lastAction = new String[0];
 
     long now = System.currentTimeMillis();
 
-    // If the current player is all-in and not folded, auto-advance so the hand completes
     if (!cur.isFolded() && cur.getChips() == 0) {
         if (now - lastBotActionTime < BOT_ACTION_DELAY_MS) return; 
         lastBotActionTime = now;
@@ -222,31 +226,52 @@ private String[] lastAction = new String[0];
             getPokerHandAsList(bot),
             new ArrayList<>(communityCards)
         );
-
         int aggr = bot.getAggression();      
         int roll = rnd.nextInt(100);     
-
-        // WEAK HAND
         if (strength < PokerHandEvaluator.PAIR) {
-            if (need == 0) {
-                dumpPlayerBetsDebug();
-                checkEndConditions();
-                pushAction(bot.getName() + " checked.");
-                lastAction[idx] = "checked";
-                lastActionTime[idx] = System.currentTimeMillis();
+            if (need == 0 && currentBet == 0) {
+                if (Math.random() < 0.5 && bot.getChips() >= BIG_BLIND) {
+                    int raiseAmt = BIG_BLIND;
+                    int put = bot.bet(raiseAmt);
+                    pot += put;
+                    playerCurrentBets[idx] += put;
+                    currentBet = playerCurrentBets[idx];
+                    lastAggressorIndex = idx;
+                    raisesThisRound++;
+                    pushAction(bot.getName() + " raises for " + raiseAmt + ".");
+                    for (int i = 0; i < pPlayers.size(); i++) {
+                        if (pPlayers.get(i).isFolded() || pPlayers.get(i).getChips() == 0)
+                            hasActed[i] = true;
+                        else
+                            hasActed[i] = (i == idx);
+                    }
+
+                    return;
+                }
+
+                // default check
+                int put = bot.bet(need);
+                pot += put;
+                playerCurrentBets[idx] += put;
+
+                pushAction(bot.getName() + (need > 0 ? " called " + put + "." : " checked."));
                 hasActed[idx] = true;
                 return;
             }
             if (need > bot.getChips() / 6 && roll > aggr) {
-                bot.fold();
-                dumpPlayerBetsDebug();
-                checkEndConditions();
-                pushAction(bot.getName() + " folded.");
-                lastAction[idx] = "checked";
-                lastActionTime[idx] = System.currentTimeMillis();
-                hasActed[idx] = true;
-                return;
+            bot.fold();
+            pushAction(bot.getName() + " folded.");
+            lastAction[idx] = "folded";
+            lastActionTime[idx] = System.currentTimeMillis();
+            hasActed[idx] = true;
+
+            // after fold, check if betting round should advance
+            if (isBettingRoundComplete()) {
+                proceedStageOrShowdown();
+            } else {
+                advanceTurn();
             }
+        }
             int put = bot.bet(need);
             pot += put;
             playerCurrentBets[idx] += put;
@@ -261,12 +286,39 @@ private String[] lastAction = new String[0];
 
         // MEDIUM HAND
         if (strength < PokerHandEvaluator.THREE_OF_KIND) {
+
+            if (need == 0 && currentBet == 0) {
+                // 50% chance to open betting
+                if (roll < 0.5 && bot.getChips() >= BIG_BLIND) {
+
+                    int raiseAmt = BIG_BLIND;
+                    int put = bot.bet(raiseAmt);
+                    pot += put;
+                    playerCurrentBets[idx] += put;
+                    currentBet = playerCurrentBets[idx];
+                    lastAggressorIndex = idx;
+                    raisesThisRound++;
+                    dumpPlayerBetsDebug();
+                    checkEndConditions();
+                    pushAction(bot.getName() + " opens for " + raiseAmt + ".");
+
+                    for (int i = 0; i < pPlayers.size(); i++) {
+                        if (pPlayers.get(i).isFolded() || pPlayers.get(i).getChips()==0)
+                            hasActed[i] = true;
+                        else
+                            hasActed[i] = (i == idx);
+                    }
+
+                    return;
+                }
+            }
+
             if (need == 0 || roll > aggr) {
                 int put = bot.bet(need);
                 pot += put;
                 playerCurrentBets[idx] += put;
                 dumpPlayerBetsDebug();
-                checkEndConditions();                
+                checkEndConditions();
                 pushAction(bot.getName() + (need > 0 ? " called " + put + "." : " checked."));
                 lastAction[idx] = "checked";
                 lastActionTime[idx] = System.currentTimeMillis();
@@ -283,7 +335,6 @@ private String[] lastAction = new String[0];
                 int put = bot.bet(need + raiseAmt);
                 pot += put;
                 playerCurrentBets[idx] += put;
-
                 currentBet = Math.max(currentBet, playerCurrentBets[idx]);
                 lastAggressorIndex = idx;
                 raisesThisRound++;
@@ -291,9 +342,6 @@ private String[] lastAction = new String[0];
                 dumpPlayerBetsDebug();
                 checkEndConditions();
                 pushAction(bot.getName() + " raised " + raiseAmt + ".");
-                lastAction[idx] = "checked";
-                lastActionTime[idx] = System.currentTimeMillis();
-                // reset action tracking: only raiser considered acted
                 for (int i = 0; i < pPlayers.size(); i++) {
                     hasActed[i] = (i == idx) || pPlayers.get(i).isFolded() || pPlayers.get(i).getChips()==0;
                 }
@@ -408,7 +456,6 @@ private String[] lastAction = new String[0];
         lastAction[currentPlayerIndex] = "raised " + (need + raiseAmt);
         lastActionTime[currentPlayerIndex] = System.currentTimeMillis();
 
-        // reset hasActed for all active players except raiser
         for (int i=0;i<pPlayers.size();i++){
             if (pPlayers.get(i).isFolded() || pPlayers.get(i).getChips()==0) hasActed[i] = true;
             else hasActed[i] = (i==currentPlayerIndex);
@@ -440,12 +487,10 @@ private String[] lastAction = new String[0];
             for (Player p : pPlayers) {
                 if (!p.isFolded()) active++;
             }
-
-        // require every active player to have acted and to have matched currentBet (or be all-in)
         for (int i = 0; i < pPlayers.size(); i++) {
             Player p = pPlayers.get(i);
             if (p.isFolded()) continue;
-            if (p.getChips() == 0) continue; // all-in players are done
+            if (p.getChips() == 0) continue; 
             if (!hasActed[i]) return false;
             // if player still has chips, they must match current bet
             if (playerCurrentBets[i] < currentBet) return false;
@@ -487,19 +532,22 @@ private String[] lastAction = new String[0];
         minRaise = BIG_BLIND;
         lastAggressorIndex = -1;
 
-        currentPlayerIndex = (dealerIndex + 1) % pPlayers.size();
-        advanceTurn();
+        for (int i = 0; i < pPlayers.size(); i++) {
+            hasActed[i] = pPlayers.get(i).isFolded() || pPlayers.get(i).getChips() == 0;
+        }
+
+        // set first active player to act
+        resetNextActor();
     }
 
     private void advanceTurn() {
-        int attempts = 0;
-        do {
-            currentPlayerIndex = (currentPlayerIndex + 1) % pPlayers.size();
-            attempts++;
-            if (attempts > pPlayers.size()*2) break;
-        } while (pPlayers.get(currentPlayerIndex).isFolded() || pPlayers.get(currentPlayerIndex).getChips() == 0);
-    }
-
+    int attempts = 0;
+    do {
+        currentPlayerIndex = (currentPlayerIndex + 1) % pPlayers.size();
+        attempts++;
+        if (attempts > pPlayers.size()*2) break;
+    } while (pPlayers.get(currentPlayerIndex).isFolded() || pPlayers.get(currentPlayerIndex).getChips() == 0);
+}
     private void checkEndConditions() {
         int alive = 0;
         Player last = null;
@@ -538,6 +586,7 @@ private String[] lastAction = new String[0];
         best.win(pot);
         pushAction(best.getName() + " wins " + pot + " chips at showdown!");
         pot = 0;
+        checkGameWinCondition();
     }
 
     // ---------- drawing ----------
@@ -559,8 +608,10 @@ private String[] lastAction = new String[0];
         }
 
         // community cards
+       
         float cx = 300, cy = 140;
         float cardW = 70, cardH = 100;
+        if (!hideTableCards) {
         for (int i = 0; i < communityCards.size(); i++) {
             PokerCard c = communityCards.get(i);
             c.setSize((int)cardW, (int)cardH);
@@ -568,6 +619,7 @@ private String[] lastAction = new String[0];
             c.setTurned(false);
             c.draw(g);
         }
+    }
 
         // players area (cards, name, chips, bet)
         float baseY = 320;
@@ -606,6 +658,7 @@ private String[] lastAction = new String[0];
                 6
             );
         }
+           
     }
 
 
@@ -637,8 +690,6 @@ private String[] lastAction = new String[0];
         g.textAlign(PApplet.RIGHT, PApplet.TOP);
         g.fill(255);
         g.text("Pot: " + pot, g.width - 10, 8);
-
-        // buttons & raise UI
         drawUI(g);
     }
 
@@ -656,7 +707,21 @@ private String[] lastAction = new String[0];
                 g.text("Raise: $" + typedRaise + " (ENTER)", 200+150, 470+35/2);
             }
         }
+
+        // always draw end-game button
+        drawButton(g, btnEndGame);
+
+        // only draw new-hand if round over
         if (!roundActive) drawButton(g, btnNewHand);
+         if (gameWinner != null) {
+                System.out.println("hello world");
+                g.fill(255, 255, 0); // bright yellow
+                g.textAlign(PApplet.CENTER, PApplet.CENTER);
+                g.textSize(48);       // big text
+                g.text("GAME WINNER: " + gameWinner.getName(), g.width/2f, g.height/2f);
+                g.textSize(16);       // reset text size for normal drawing later
+            }
+
     }
 
     private void drawButton(PApplet g, Button b) {
@@ -689,10 +754,9 @@ private String[] lastAction = new String[0];
 
         if (btnCall.contains(mx,my)) { humanCall(); return; }
         if (btnRaise.contains(mx,my)) { beginRaiseTyping(); return; }
-        if (btnFold.contains(mx,my)) { 
-            humanFold(); 
-            return; 
-}    }
+        if (btnFold.contains(mx,my)) { humanFold(); return; }    
+        if (btnEndGame.contains(mx,my)) { endGame(null);return;}
+}
     @Override
     public void handleKey(char keyChar, int keyCode) {
         if (!enteringRaise) return;
@@ -715,12 +779,12 @@ private String[] lastAction = new String[0];
     public int getPot() { return pot; }
     public ArrayList<PokerCard> getCommunityCards() { return communityCards; }
     private boolean allActivePlayersAllIn() {
-        for (int i = 0; i < pPlayers.size(); i++) {
-            Player p = pPlayers.get(i);
+        int activeWithChips = 0;
+        for (Player p : pPlayers) {
             if (p.isFolded()) continue;
-            if (p.getChips() > 0) return false;
+            if (p.getChips() > 0) activeWithChips++;
         }
-        return true;
+        return activeWithChips <= 1;
     }
     private void dumpPlayerBetsDebug() {//debugger
     StringBuilder sb = new StringBuilder("BETS:");
@@ -729,5 +793,73 @@ private String[] lastAction = new String[0];
     }
     System.out.println(sb.toString());
 }
+    @Override
+    public  void checkWinCondition() {
+        return;
+    }
+        private void resetNextActor() {
+    for (int i = 0; i < pPlayers.size(); i++) {
+        int idx = (dealerIndex + 1 + i) % pPlayers.size();
+        if (!pPlayers.get(idx).isFolded() && pPlayers.get(idx).getChips() > 0) {
+            currentPlayerIndex = idx;
+            return;
+        }
+    }
+}
+// game ending methods
+    private void checkGameWinCondition() {
+    int playersWithMoney = 0;
+    Player richest = null;
+    for (Player p : pPlayers) {
+        if (p.getChips() > 0) {
+            playersWithMoney++;
+            if (richest == null || p.getChips() > richest.getChips()) richest = p;
+        }
+    }
+
+    if (playersWithMoney <= 1) {
+        endGame(richest); 
+    }
+}
+
+    // ---------- End Game ----------
+    public void endGame(Player winner) {
+    if (winner == null) {
+        winner = pPlayers.get(0);
+        int maxChips = winner.getChips();
+        for (Player p : pPlayers) {
+            if (p.getChips() > maxChips) {
+                winner = p;
+                maxChips = p.getChips();
+            }
+        }
+    }
+
+    gameWinner = winner;
+    pushAction("GAME ENDED! " + gameWinner.getName() + " wins with $" + gameWinner.getChips());
+
+    roundActive = false;
+    hideTableCards = true;
+    communityCards.clear();
+
+    // reset hands
+    for (Player p : pPlayers) p.resetForRound();
+
+    currentBet = 0;
+    raisesThisRound = 0;
+    minRaise = BIG_BLIND;
+    lastAggressorIndex = -1;
+    for (int i = 0; i < pPlayers.size(); i++) {
+        hasActed[i] = true;
+        playerCurrentBets[i] = 0;
+        lastAction[i] = "";
+    }
+    for (Player p : pPlayers) {
+        p.resetForRound();       
+        p.resetChips(1000);       
+    }
+}
+
+
 }
 
