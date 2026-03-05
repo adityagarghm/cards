@@ -132,7 +132,6 @@ public abstract class CardGame {
         // Remove card from hand
         hand.removeCard(card);
         card.setSelected(false, selectedCardRaiseAmount);
-        // Add to discard pile
         discardPile.add(card);
         card.setTurned(false);
         lastPlayedCard = card;

@@ -660,8 +660,6 @@ private String[] lastAction = new String[0];
         }
            
     }
-
-
             g.fill(pl.isFolded() ? 150 : 255);
             g.textAlign(PApplet.CENTER, PApplet.TOP);
             g.text(pl.getName(), px + cardW, baseY + cardH + 6);
@@ -714,8 +712,7 @@ private String[] lastAction = new String[0];
         // only draw new-hand if round over
         if (!roundActive) drawButton(g, btnNewHand);
          if (gameWinner != null) {
-                System.out.println("hello world");
-                g.fill(255, 255, 0); // bright yellow
+                g.fill(24, 60, 155); // bright yellow
                 g.textAlign(PApplet.CENTER, PApplet.CENTER);
                 g.textSize(48);       // big text
                 g.text("GAME WINNER: " + gameWinner.getName(), g.width/2f, g.height/2f);
@@ -836,7 +833,7 @@ private String[] lastAction = new String[0];
     }
 
     gameWinner = winner;
-    pushAction("GAME ENDED! " + gameWinner.getName() + " wins with $" + gameWinner.getChips());
+    pushAction("GAME ENDED! " + gameWinner.getName() + " win(s) with $" + gameWinner.getChips());
 
     roundActive = false;
     hideTableCards = true;
